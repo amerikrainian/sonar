@@ -1,0 +1,168 @@
+# ----------------------------------------
+# C++ / build artifacts
+# ----------------------------------------
+
+# Compiled object files, static & shared libs
+*.o
+*.ko
+*.obj
+*.elf
+*.so
+*.so.*
+*.dll
+*.dylib
+*.a
+*.la
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Precompiled headers
+*.gch
+*.pch
+
+# Dependency files
+*.d
+*.su
+*.idb
+*.ipdb
+
+# Generated files
+# (for example: from code generation, protobuf, Thrift, etc.)
+gen/
+generated/
+build/
+bin/
+lib/
+
+# Intermediate files / temp files
+*.tmp
+*.temp
+*~
+# swap files
+*.swp
+*.swo
+
+# ----------------------------------------
+# IDE / editor files
+# ----------------------------------------
+
+# Visual Studio
+*.vcxproj.user
+*.vcxproj.filters
+*.vcxproj*
+*.sln
+*.suo
+*.user
+*.userosscache
+.vs/
+
+# CLion / IntelliJ
+.idea/
+*.iml
+cmake-build-*/
+cmake-build-*/CMakeFiles/
+cmake-build-*/CMakeCache.txt
+cmake-build-*/Makefile
+cmake-build-*/cmake_install.cmake
+cmake-build-*/Testing/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcworkspace
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+
+# Qt Creator
+*.pro.user
+*.pro.user.*
+*.layout
+*.autosave
+
+# Other editors
+*.kate-swp
+*.emacs.desktop
+*.vscode/
+*.code-workspace
+
+# ----------------------------------------
+# OS generated files
+# ----------------------------------------
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+__MACOSX/
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~     # backup files
+.directory
+.Trash-* 
+
+# ----------------------------------------
+# Logs, coverage, profiling etc.
+# ----------------------------------------
+
+*.log
+*.trace
+*.prof
+*.gcno
+*.gcda
+*.lcov
+*.gcov
+
+# Benchmark tools output
+BenchmarkResults/
+benchmark_output/
+
+# Coverage tools
+coverage/
+*.cover
+
+# Sanitizer outputs
+hs_err_pid*
+asan_log*
+ubsan.log
+
+# ----------------------------------------
+# Misc / user / env
+# ----------------------------------------
+
+# Environment files
+.env
+.env.*
+*.env
+
+# Secrets / local configs
+config.local
+*.local
+*.secret
+
+# Build tools / stamp / lock files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+build.ninja
+compile_commands.json
+
+# Ignore generated documentation
+doc/html/
+doc/api/
+docs/_build/
+

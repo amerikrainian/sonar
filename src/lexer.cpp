@@ -18,6 +18,8 @@ bool is_digit(char ch) {
 inline TokenType keyword_or_identifier(std::string_view lexeme) {
     static const std::unordered_map<std::string_view, TokenType> keywords = {
         {"let", TokenType::Let},
+        {"if", TokenType::If},
+        {"else", TokenType::Else},
     };
 
     auto it = keywords.find(lexeme);

@@ -79,6 +79,8 @@ ExpressionPtr Parser::parse_prefix() {
         }
         case TokenType::LeftBrace:
             return parse_block();
+        case TokenType::If:
+            return parse_if();
         default:
             throw make_error("Unexpected token '" + token.lexeme + "' while parsing expression", token.span, false);
     }
@@ -230,6 +232,24 @@ ExpressionPtr Parser::parse_block() {
 
     SourceSpan span{open.span.start, close.span.end};
     Expression::Block node{std::move(exprs), span};
+    return std::make_unique<Expression>(std::move(node));
+}
+
+ExpressionPtr Parser::parse_if() {
+    Token if_token = consume(TokenType::If, "Expected 'if'");
+
+    auto condition = parse_expression();
+
+    auto then_branch = parse_expression();
+    std::unique_ptr<Expression> else_branch;
+    if (match(TokenType::Else)) {
+        else_branch = parse_expression();
+    }
+
+    SourceSpan span{if_token.span.start,
+                    (else_branch ? else_branch->span.end : then_branch->span.end)};
+
+    Expression::If node{std::move(condition), std::move(then_branch), std::move(else_branch), span};
     return std::make_unique<Expression>(std::move(node));
 }
 

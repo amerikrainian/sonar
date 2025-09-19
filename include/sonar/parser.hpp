@@ -61,6 +61,7 @@ class Parser {
     ExpressionPtr parse_prefix_operator();
     ExpressionPtr parse_binary_operator(ExpressionPtr left, Token op);
     ExpressionPtr parse_block();
+    ExpressionPtr parse_if();
 
     ParseError make_error(const std::string& message, SourceSpan span, bool incomplete) const;
     SourceLocation location_for(std::size_t offset) const;

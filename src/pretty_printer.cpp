@@ -59,6 +59,15 @@ struct Printer {
         result += "}";
         return result;
     }
+
+    std::string operator()(const Expression::If& if_expr) const {
+        std::string result = "(if " + render(*if_expr.condition) + " " + render(*if_expr.then);
+        if (if_expr.else_branch) {
+            result += " else " + render(*if_expr.else_branch);
+        }
+        result += ")";
+        return result;
+    }
 };
 
 std::string render(const Expression& expression) {

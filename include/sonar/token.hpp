@@ -21,6 +21,8 @@ enum class TokenType {
     Number,
     Identifier,
     Let,
+    If,
+    Else,
     Plus,
     Minus,
     Star,
@@ -80,6 +82,10 @@ inline std::string to_string(TokenType type) {
             return "{";
         case TokenType::RightBrace:
             return "}";
+        case TokenType::If:
+            return "if";
+        case TokenType::Else:
+            return "else";
     }
     return "<unknown>";
 }

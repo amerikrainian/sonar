@@ -9,6 +9,7 @@ namespace sonar {
 namespace {
 
 std::string render(const Expression& expression);
+std::string render(const Statement& statement);
 
 std::string format_number(double value) {
     std::ostringstream oss;
@@ -39,10 +40,6 @@ struct Printer {
         return "(unit)";
     }
 
-    std::string operator()(const Expression::Let& let) const {
-        return "(let " + let.name + " = " + render(*let.value) + ")";
-    }
-
     std::string operator()(const Expression::Assign& assign) const {
         return "(assign " + assign.name + " = " + render(*assign.value) + ")";
     }
@@ -53,8 +50,11 @@ struct Printer {
 
     std::string operator()(const Expression::Block& block) const {
         std::string result = "{ ";
-        for (const auto& expr : block.expressions) {
-            result += render(*expr) + " ";
+        for (const auto& stmt : block.statements) {
+            result += render(*stmt) + " ";
+        }
+        if (block.value) {
+            result += render(*block.value) + " ";
         }
         result += "}";
         return result;
@@ -68,10 +68,32 @@ struct Printer {
         result += ")";
         return result;
     }
+
+    std::string operator()(const Expression::While& while_expr) const {
+        return "(while " + render(*while_expr.condition) + " " + render(*while_expr.body) + ")";
+    }
+
+    std::string operator()(const Expression::For& for_expr) const {
+        return "(for " + render(*for_expr.pattern) + " in " + render(*for_expr.iterable) + " " + render(*for_expr.body) + ")";
+    }
 };
 
 std::string render(const Expression& expression) {
     return std::visit(Printer{}, expression.node);
+}
+
+struct StatementPrinter {
+    std::string operator()(const Statement::Let& let) const {
+        return "(let " + let.name + " = " + render(*let.value) + ")";
+    }
+
+    std::string operator()(const Statement::Expression& expr_stmt) const {
+        return "(expr " + render(*expr_stmt.expression) + ")";
+    }
+};
+
+std::string render(const Statement& statement) {
+    return std::visit(StatementPrinter{}, statement.node);
 }
 
 }  // namespace

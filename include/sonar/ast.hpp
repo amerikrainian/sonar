@@ -9,6 +9,12 @@
 
 namespace sonar {
 
+struct Expression;
+struct Statement;
+
+using ExpressionPtr = std::unique_ptr<Expression>;
+using StatementPtr = std::unique_ptr<Statement>;
+
 struct Expression {
     struct Number {
         double value;
@@ -45,13 +51,6 @@ struct Expression {
         SourceSpan span;
     };
 
-    struct Let {
-        std::string name;
-        SourceSpan name_span;
-        std::unique_ptr<Expression> value;
-        SourceSpan span;
-    };
-
     struct Assign {
         std::string name;
         SourceSpan name_span;
@@ -60,7 +59,8 @@ struct Expression {
     };
 
     struct Block {
-        std::vector<std::unique_ptr<Expression>> expressions;
+        std::vector<StatementPtr> statements;
+        ExpressionPtr value;
         SourceSpan span;
     };
 
@@ -71,7 +71,20 @@ struct Expression {
         SourceSpan span;
     };
 
-    using Node = std::variant<Number, Prefix, Infix, Grouping, Unit, Let, Assign, Variable, Block, If>;
+    struct While {
+        ExpressionPtr condition;
+        ExpressionPtr body;
+        SourceSpan span;
+    };
+
+    struct For {
+        ExpressionPtr pattern;
+        ExpressionPtr iterable;
+        ExpressionPtr body;
+        SourceSpan span;
+    };
+
+    using Node = std::variant<Number, Prefix, Infix, Grouping, Unit, Assign, Variable, Block, If, While, For>;
 
     explicit Expression(Number node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Variable node) : span(node.span), node(std::move(node)) {}
@@ -79,15 +92,43 @@ struct Expression {
     explicit Expression(Infix node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Grouping node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Unit node) : span(node.span), node(std::move(node)) {}
-    explicit Expression(Let node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Assign node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Block node) : span(node.span), node(std::move(node)) {}
     explicit Expression(If node) : span(node.span), node(std::move(node)) {}
+    explicit Expression(While node) : span(node.span), node(std::move(node)) {}
+    explicit Expression(For node) : span(node.span), node(std::move(node)) {}
+
+    ~Expression();
 
     SourceSpan span;
     Node node;
 };
 
-using ExpressionPtr = std::unique_ptr<Expression>;
+struct Statement {
+    struct Let {
+        std::string name;
+        SourceSpan name_span;
+        ExpressionPtr value;
+        SourceSpan span;
+    };
+
+    struct Expression {
+        ExpressionPtr expression;
+        SourceSpan span;
+    };
+
+    using Node = std::variant<Let, Expression>;
+
+    explicit Statement(Let node) : span(node.span), node(std::move(node)) {}
+    explicit Statement(Expression node) : span(node.span), node(std::move(node)) {}
+
+    ~Statement();
+
+    SourceSpan span;
+    Node node;
+};
+
+inline Expression::~Expression() = default;
+inline Statement::~Statement() = default;
 
 }  // namespace sonar

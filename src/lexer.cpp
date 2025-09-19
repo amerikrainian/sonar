@@ -20,6 +20,9 @@ inline TokenType keyword_or_identifier(std::string_view lexeme) {
         {"let", TokenType::Let},
         {"if", TokenType::If},
         {"else", TokenType::Else},
+        {"for", TokenType::For},
+        {"while", TokenType::While},
+        {"in", TokenType::In},
     };
 
     auto it = keywords.find(lexeme);
@@ -113,6 +116,11 @@ LexResult Lexer::tokenize(std::string_view source) const {
     };
 
     std::size_t index = 0;
+
+    auto peek = [&](std::size_t lookahead = 0) -> char {
+        return (index + lookahead < source.size()) ? source[index + lookahead] : '\0';
+    };
+
     while (index < source.size()) {
         const char ch = source[index];
         if (ch == '\n') {
@@ -138,10 +146,40 @@ LexResult Lexer::tokenize(std::string_view source) const {
                 result.tokens.push_back({TokenType::Star, "*", SourceSpan{index, index + 1}});
                 ++index;
                 continue;
-            case '/':
+            case '/': {
+                if (peek(1) == '/') {
+                    index += 2;
+                    while (index < source.size() && peek() != '\n') {
+                        ++index;
+                    }
+                    continue;
+                } else if (peek(1) == '*') {
+                    index += 2;
+                    bool terminated = false;
+                    while (index < source.size()) {
+                        char current = peek();
+                        if (current == '\n') {
+                            ++index;
+                            result.line_offsets.push_back(index);
+                            continue;
+                        }
+                        if (current == '*' && peek(1) == '/') {
+                            index += 2;  // consume */
+                            terminated = true;
+                            break;
+                        }
+                        ++index;
+                    }
+                    if (!terminated) {
+                        throw make_error("Unterminated block comment", index);
+                    }
+                    continue;
+                }
+
                 result.tokens.push_back({TokenType::Slash, "/", SourceSpan{index, index + 1}});
                 ++index;
                 continue;
+            }
             case '(':
                 result.tokens.push_back({TokenType::LeftParen, "(", SourceSpan{index, index + 1}});
                 ++index;
@@ -160,6 +198,10 @@ LexResult Lexer::tokenize(std::string_view source) const {
                 continue;
             case '}':
                 result.tokens.push_back({TokenType::RightBrace, "}", SourceSpan{index, index + 1}});
+                ++index;
+                continue;
+            case ';':
+                result.tokens.push_back({TokenType::Semicolon, ";", SourceSpan{index, index + 1}});
                 ++index;
                 continue;
             default:

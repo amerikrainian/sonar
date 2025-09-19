@@ -46,6 +46,16 @@ class Parser {
     ExpressionPtr parse_prefix();
     ExpressionPtr parse_infix(ExpressionPtr left, Token op);
 
+    struct StatementSequence {
+        std::vector<StatementPtr> statements;
+        ExpressionPtr value;
+    };
+
+    StatementSequence parse_sequence(TokenType terminator);
+    StatementPtr parse_statement();
+    StatementPtr parse_let_statement();
+    StatementPtr make_expression_statement(ExpressionPtr expression);
+
     bool match(TokenType type);
     const Token& advance();
     bool check(TokenType type) const;
@@ -62,7 +72,8 @@ class Parser {
     ExpressionPtr parse_binary_operator(ExpressionPtr left, Token op);
     ExpressionPtr parse_block();
     ExpressionPtr parse_if();
-    ExpressionPtr parse_let();
+    ExpressionPtr parse_while();
+    ExpressionPtr parse_for();
     ExpressionPtr parse_identifier();
 
     ParseError make_error(const std::string& message, SourceSpan span, bool incomplete) const;

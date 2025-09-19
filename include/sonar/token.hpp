@@ -23,6 +23,8 @@ enum class TokenType {
     Let,
     If,
     Else,
+    For,
+    While,
     Plus,
     Minus,
     Star,
@@ -31,7 +33,9 @@ enum class TokenType {
     RightParen,
     LeftBrace,
     RightBrace,
+    Semicolon,
     Equals,
+    In,
     End,
 };
 
@@ -62,6 +66,14 @@ inline std::string to_string(TokenType type) {
             return "identifier";
         case TokenType::Let:
             return "let";
+        case TokenType::If:
+            return "if";
+        case TokenType::Else:
+            return "else";
+        case TokenType::For:
+            return "for";
+        case TokenType::While:
+            return "while";
         case TokenType::Plus:
             return "+";
         case TokenType::Minus:
@@ -74,18 +86,18 @@ inline std::string to_string(TokenType type) {
             return "(";
         case TokenType::RightParen:
             return ")";
-        case TokenType::End:
-            return "<eof>";
         case TokenType::Equals:
             return "=";
+        case TokenType::Semicolon:
+            return ";";
         case TokenType::LeftBrace:
             return "{";
         case TokenType::RightBrace:
             return "}";
-        case TokenType::If:
-            return "if";
-        case TokenType::Else:
-            return "else";
+        case TokenType::End:
+            return "<eof>";
+        case TokenType::In:
+            return "in";
     }
     return "<unknown>";
 }

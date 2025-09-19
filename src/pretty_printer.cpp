@@ -38,6 +38,18 @@ struct Printer {
     std::string operator()(const Expression::Unit&) const {
         return "(unit)";
     }
+
+    std::string operator()(const Expression::Let& let) const {
+        return "(let " + let.name + " = " + render(*let.value) + ")";
+    }
+
+    std::string operator()(const Expression::Assign& assign) const {
+        return "(assign " + assign.name + " = " + render(*assign.value) + ")";
+    }
+
+    std::string operator()(const Expression::Variable& variable) const {
+        return variable.name;
+    }
 };
 
 std::string render(const Expression& expression) {

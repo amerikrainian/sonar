@@ -19,12 +19,15 @@ struct SourceLocation {
 
 enum class TokenType {
     Number,
+    Identifier,
+    Let,
     Plus,
     Minus,
     Star,
     Slash,
     LeftParen,
     RightParen,
+    Equals,
     End,
 };
 
@@ -51,6 +54,10 @@ inline std::string to_string(TokenType type) {
     switch (type) {
         case TokenType::Number:
             return "number";
+        case TokenType::Identifier:
+            return "identifier";
+        case TokenType::Let:
+            return "let";
         case TokenType::Plus:
             return "+";
         case TokenType::Minus:
@@ -65,6 +72,8 @@ inline std::string to_string(TokenType type) {
             return ")";
         case TokenType::End:
             return "<eof>";
+        case TokenType::Equals:
+            return "=";
     }
     return "<unknown>";
 }

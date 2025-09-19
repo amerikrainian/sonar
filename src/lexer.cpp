@@ -5,6 +5,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 
 namespace sonar {
 
@@ -12,6 +13,78 @@ namespace {
 
 bool is_digit(char ch) {
     return static_cast<bool>(std::isdigit(static_cast<unsigned char>(ch)));
+}
+
+inline TokenType keyword_or_identifier(std::string_view lexeme) {
+    static const std::unordered_map<std::string_view, TokenType> keywords = {
+        {"let", TokenType::Let},
+    };
+
+    auto it = keywords.find(lexeme);
+    return (it != keywords.end()) ? it->second : TokenType::Identifier;
+}
+
+Token scan_ident(std::string_view source, std::size_t& index) {
+    const std::size_t start = index;
+    ++index;
+    while (index < source.size()) {
+        char next = source[index];
+        if (std::isalnum(static_cast<unsigned char>(next)) || next == '_') {
+            ++index;
+        } else {
+            break;
+        }
+    }
+    const std::size_t length = index - start;
+    std::string_view lexeme = source.substr(start, length);
+    TokenType type = keyword_or_identifier(lexeme);
+    return {type, std::string(lexeme), SourceSpan{start, start + length}};
+}
+
+Token scan_number(std::string_view source, std::size_t& index, auto&& make_error) {
+    const std::size_t start = index;
+    bool seen_dot = false;
+
+    // integer part or leading '.'
+    if (source[index] == '.') {
+        seen_dot = true;
+        ++index;
+        if (index >= source.size() || !is_digit(source[index])) {
+            throw make_error("Standalone '.' is not a valid number", start);
+        }
+    } else {
+        while (index < source.size() && is_digit(source[index])) {
+            ++index;
+        }
+        if (index < source.size() && source[index] == '.') {
+            seen_dot = true;
+            ++index;
+        }
+    }
+
+    // fractional part
+    if (seen_dot) {
+        while (index < source.size() && is_digit(source[index])) {
+            ++index;
+        }
+    }
+
+    // exponent part
+    if (index < source.size() && (source[index] == 'e' || source[index] == 'E')) {
+        ++index;
+        if (index < source.size() && (source[index] == '+' || source[index] == '-')) {
+            ++index;
+        }
+        if (index >= source.size() || !is_digit(source[index])) {
+            throw make_error("Invalid exponent in number literal", index);
+        }
+        while (index < source.size() && is_digit(source[index])) {
+            ++index;
+        }
+    }
+
+    const std::size_t length = index - start;
+    return {TokenType::Number, std::string(source.substr(start, length)), SourceSpan{start, start + length}};
 }
 
 }  // namespace
@@ -75,32 +148,21 @@ LexResult Lexer::tokenize(std::string_view source) const {
                 result.tokens.push_back({TokenType::RightParen, ")", SourceSpan{index, index + 1}});
                 ++index;
                 continue;
+            case '=':
+                result.tokens.push_back({TokenType::Equals, "=", SourceSpan{index, index + 1}});
+                ++index;
+                continue;
             default:
                 break;
         }
 
         if (is_digit(ch) || ch == '.') {
-            const std::size_t start = index;
-            bool seen_dot = (ch == '.');
-            ++index;
-            while (index < source.size()) {
-                const char next = source[index];
-                if (is_digit(next)) {
-                    ++index;
-                    continue;
-                }
-                if (next == '.' && !seen_dot) {
-                    seen_dot = true;
-                    ++index;
-                    continue;
-                }
-                break;
-            }
-            const std::size_t length = index - start;
-            if (length == 1 && source[start] == '.') {
-                throw make_error("Standalone '.' is not a valid number", start);
-            }
-            result.tokens.push_back({TokenType::Number, std::string(source.substr(start, length)), SourceSpan{start, start + length}});
+            result.tokens.push_back(scan_number(source, index, make_error));
+            continue;
+        }
+
+        if (std::isalpha(static_cast<unsigned char>(ch)) || ch == '_') {
+            result.tokens.push_back(scan_ident(source, index));
             continue;
         }
 

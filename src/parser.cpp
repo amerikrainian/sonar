@@ -55,6 +55,28 @@ ExpressionPtr Parser::parse_prefix() {
             return parse_grouping();
         case TokenType::End:
             throw make_error("Unexpected end of input while parsing expression", token.span, true);
+        case TokenType::Let: {
+            advance();
+            const Token& name = consume(TokenType::Identifier, "Expected identifier after 'let'");
+            consume(TokenType::Equals, "Expected '=' after identifier");
+            auto expr = parse_expression();
+            SourceSpan span{name.span.start, expr->span.end};
+            Expression::Let node{name.lexeme, name.span, std::move(expr), span};
+            return std::make_unique<Expression>(std::move(node));
+        }
+        case TokenType::Identifier: {
+            Token name = advance();
+
+            if (match(TokenType::Equals)) {
+                auto expr = parse_expression();
+                SourceSpan span{token.span.start, expr->span.end};
+                Expression::Assign node{token.lexeme, token.span, std::move(expr), span};
+                return std::make_unique<Expression>(std::move(node));
+            }
+
+            Expression::Variable node{name.lexeme, name.span, name.span};
+            return std::make_unique<Expression>(std::move(node));
+        }
         default:
             throw make_error("Unexpected token '" + token.lexeme + "' while parsing expression", token.span, false);
     }
@@ -113,6 +135,8 @@ const Token& Parser::consume(TokenType type, const std::string& message) {
 
 int Parser::precedence(TokenType type) const {
     switch (type) {
+        case TokenType::Equals:
+        return 5;
         case TokenType::Plus:
         case TokenType::Minus:
             return 10;
@@ -157,6 +181,19 @@ ExpressionPtr Parser::parse_prefix_operator() {
 
 ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op) {
     int operator_precedence = precedence(op.type);
+
+    if (op.type == TokenType::Equals) {
+        auto* var = std::get_if<Expression::Variable>(&left->node);
+        if (!var) {
+            throw make_error("Left-hand side of assignment must be a variable", op.span, false);
+        }
+
+        auto right = parse_expression(operator_precedence); // not +1 → right-assoc
+        SourceSpan span{left->span.start, right->span.end};
+        Expression::Assign node{var->name, var->name_span, std::move(right), span};
+        return std::make_unique<Expression>(std::move(node));
+    }
+
     auto right = parse_expression(operator_precedence + 1);
     SourceSpan left_span = left->span;
     SourceSpan right_span = right->span;

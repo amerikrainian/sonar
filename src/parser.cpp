@@ -51,32 +51,13 @@ ExpressionPtr Parser::parse_prefix() {
             advance();
             return parse_prefix_operator();
         case TokenType::LeftParen:
-            advance();
             return parse_grouping();
         case TokenType::End:
             throw make_error("Unexpected end of input while parsing expression", token.span, true);
-        case TokenType::Let: {
-            advance();
-            const Token& name = consume(TokenType::Identifier, "Expected identifier after 'let'");
-            consume(TokenType::Equals, "Expected '=' after identifier");
-            auto expr = parse_expression();
-            SourceSpan span{name.span.start, expr->span.end};
-            Expression::Let node{name.lexeme, name.span, std::move(expr), span};
-            return std::make_unique<Expression>(std::move(node));
-        }
-        case TokenType::Identifier: {
-            Token name = advance();
-
-            if (match(TokenType::Equals)) {
-                auto expr = parse_expression();
-                SourceSpan span{token.span.start, expr->span.end};
-                Expression::Assign node{token.lexeme, token.span, std::move(expr), span};
-                return std::make_unique<Expression>(std::move(node));
-            }
-
-            Expression::Variable node{name.lexeme, name.span, name.span};
-            return std::make_unique<Expression>(std::move(node));
-        }
+        case TokenType::Let:
+            return parse_let();
+        case TokenType::Identifier:
+            return parse_identifier();
         case TokenType::LeftBrace:
             return parse_block();
         case TokenType::If:
@@ -92,6 +73,7 @@ ExpressionPtr Parser::parse_infix(ExpressionPtr left, Token op) {
         case TokenType::Minus:
         case TokenType::Star:
         case TokenType::Slash:
+        case TokenType::Equals:
             return parse_binary_operator(std::move(left), op);
         default:
             throw make_error("Unsupported infix operator: " + to_string(op.type), op.span, false);
@@ -159,7 +141,7 @@ ExpressionPtr Parser::parse_number() {
 }
 
 ExpressionPtr Parser::parse_grouping() {
-    Token open = previous();
+    Token open = consume(TokenType::LeftParen, "Expected '(' before expression");
     if (check(TokenType::RightParen)) {
         const Token& close = advance();
         SourceSpan span{open.span.start, close.span.end};
@@ -250,6 +232,23 @@ ExpressionPtr Parser::parse_if() {
                     (else_branch ? else_branch->span.end : then_branch->span.end)};
 
     Expression::If node{std::move(condition), std::move(then_branch), std::move(else_branch), span};
+    return std::make_unique<Expression>(std::move(node));
+}
+
+ExpressionPtr Parser::parse_let() {
+    Token let_token = consume(TokenType::Let, "Expected 'let'");
+    const Token& name = consume(TokenType::Identifier, "Expected identifier after 'let'");
+    consume(TokenType::Equals, "Expected '=' after identifier");
+    auto expr = parse_expression();
+    SourceSpan span{name.span.start, expr->span.end};
+    Expression::Let node{name.lexeme, name.span, std::move(expr), span};
+    return std::make_unique<Expression>(std::move(node));
+}
+
+ExpressionPtr Parser::parse_identifier() {
+    Token name = advance();
+
+    Expression::Variable node{name.lexeme, name.span, name.span};
     return std::make_unique<Expression>(std::move(node));
 }
 

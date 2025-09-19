@@ -69,6 +69,10 @@ ExpressionPtr Parser::parse_prefix() {
             throw make_error("Unexpected end of input while parsing expression", token.span, true);
         case TokenType::Identifier:
             return parse_identifier();
+        case TokenType::Fn: {
+            Token fn_token = advance();
+            return parse_function_literal(fn_token);
+        }
         case TokenType::LeftBrace:
             return parse_block();
         case TokenType::If:
@@ -125,6 +129,11 @@ const Token& Parser::peek() const {
     return tokens_.at(current_);
 }
 
+const Token& Parser::peek(std::size_t offset) const {
+    std::size_t index = std::min(current_ + offset, tokens_.size() - 1);
+    return tokens_.at(index);
+}
+
 const Token& Parser::previous() const {
     return tokens_.at(current_ - 1);
 }
@@ -148,7 +157,14 @@ Parser::StatementSequence Parser::parse_sequence(TokenType terminator) {
 
         if (check(TokenType::Let)) {
             auto stmt = parse_let_statement();
-            consume(TokenType::Semicolon, "Expected ';' after statement");
+            match(TokenType::Semicolon);  // eat ; if present
+            sequence.statements.push_back(std::move(stmt));
+            continue;
+        }
+
+        if (check(TokenType::Fn) && peek(1).type == TokenType::Identifier) {
+            auto stmt = parse_fn_statement();
+            match(TokenType::Semicolon);  // eat ; if present
             sequence.statements.push_back(std::move(stmt));
             continue;
         }
@@ -174,6 +190,9 @@ StatementPtr Parser::parse_statement() {
     if (check(TokenType::Let)) {
         return parse_let_statement();
     }
+    if (check(TokenType::Fn) && peek(1).type == TokenType::Identifier) {
+        return parse_fn_statement();
+    }
     auto expr = parse_expression();
     return make_expression_statement(std::move(expr));
 }
@@ -191,6 +210,15 @@ StatementPtr Parser::parse_let_statement() {
 StatementPtr Parser::make_expression_statement(ExpressionPtr expression) {
     SourceSpan span = expression ? expression->span : SourceSpan{};
     Statement::Expression node{std::move(expression), span};
+    return std::make_unique<Statement>(std::move(node));
+}
+
+StatementPtr Parser::parse_fn_statement() {
+    Token fn_token = consume(TokenType::Fn, "Expected 'fn'");
+    const Token& name = consume(TokenType::Identifier, "Expected function name after 'fn'");
+    auto function = parse_function_literal(fn_token);
+    SourceSpan span{fn_token.span.start, function->span.end};
+    Statement::Let node{name.lexeme, name.span, std::move(function), span};
     return std::make_unique<Statement>(std::move(node));
 }
 
@@ -249,7 +277,7 @@ ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op) {
             throw make_error("Left-hand side of assignment must be a variable", op.span, false);
         }
 
-        auto right = parse_expression(operator_precedence);  // not +1 → right-assoc
+        auto right = parse_expression(operator_precedence);
         SourceSpan span{left->span.start, right->span.end};
         Expression::Assign node{var->name, var->name_span, std::move(right), span};
         return std::make_unique<Expression>(std::move(node));
@@ -313,6 +341,30 @@ ExpressionPtr Parser::parse_identifier() {
     return std::make_unique<Expression>(std::move(node));
 }
 
+ExpressionPtr Parser::parse_function_literal(Token fn_token) {
+    consume(TokenType::LeftParen, "Expected '(' after 'fn'");
+
+    std::vector<Expression::Function::Parameter> parameters;
+
+    if (!check(TokenType::RightParen)) {
+        while (true) {
+            const Token& parameter = consume(TokenType::Identifier, "Expected parameter name");
+            parameters.push_back(Expression::Function::Parameter{parameter.lexeme, parameter.span});
+            if (!match(TokenType::Comma)) {
+                break;
+            }
+        }
+    }
+
+    consume(TokenType::RightParen, "Expected ')' after parameter list");
+
+    auto body = parse_expression();
+
+    SourceSpan span{fn_token.span.start, body->span.end};
+    Expression::Function node{std::move(parameters), std::move(body), span};
+    return std::make_unique<Expression>(std::move(node));
+}
+
 ExpressionPtr Parser::parse_while() {
     Token while_token = consume(TokenType::While, "Expected 'while'");
     auto condition = parse_expression();
@@ -325,7 +377,7 @@ ExpressionPtr Parser::parse_while() {
 ExpressionPtr Parser::parse_for() {
     Token for_token = consume(TokenType::For, "Expected 'for'");
 
-    auto pattern = parse_identifier();  // could later be parse_pattern()
+    auto pattern = parse_identifier();
     consume(TokenType::In, "Expected 'in' after loop variable");
 
     auto iterable = parse_expression();

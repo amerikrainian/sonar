@@ -18,6 +18,7 @@ bool is_digit(char ch) {
 inline TokenType keyword_or_identifier(std::string_view lexeme) {
     static const std::unordered_map<std::string_view, TokenType> keywords = {
         {"let", TokenType::Let},
+        {"fn", TokenType::Fn},
         {"if", TokenType::If},
         {"else", TokenType::Else},
         {"for", TokenType::For},
@@ -186,6 +187,10 @@ LexResult Lexer::tokenize(std::string_view source) const {
                 continue;
             case ')':
                 result.tokens.push_back({TokenType::RightParen, ")", SourceSpan{index, index + 1}});
+                ++index;
+                continue;
+            case ',':
+                result.tokens.push_back({TokenType::Comma, ",", SourceSpan{index, index + 1}});
                 ++index;
                 continue;
             case '=':

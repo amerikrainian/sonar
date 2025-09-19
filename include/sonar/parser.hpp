@@ -54,6 +54,7 @@ class Parser {
     StatementSequence parse_sequence(TokenType terminator);
     StatementPtr parse_statement();
     StatementPtr parse_let_statement();
+    StatementPtr parse_fn_statement();
     StatementPtr make_expression_statement(ExpressionPtr expression);
 
     bool match(TokenType type);
@@ -61,6 +62,7 @@ class Parser {
     bool check(TokenType type) const;
     bool is_at_end() const;
     const Token& peek() const;
+    const Token& peek(std::size_t offset) const;
     const Token& previous() const;
     const Token& consume(TokenType type, const std::string& message);
 
@@ -75,6 +77,7 @@ class Parser {
     ExpressionPtr parse_while();
     ExpressionPtr parse_for();
     ExpressionPtr parse_identifier();
+    ExpressionPtr parse_function_literal(Token fn_token);
 
     ParseError make_error(const std::string& message, SourceSpan span, bool incomplete) const;
     SourceLocation location_for(std::size_t offset) const;

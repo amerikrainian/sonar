@@ -76,6 +76,19 @@ struct Printer {
     std::string operator()(const Expression::For& for_expr) const {
         return "(for " + render(*for_expr.pattern) + " in " + render(*for_expr.iterable) + " " + render(*for_expr.body) + ")";
     }
+
+    std::string operator()(const Expression::Function& fn_expr) const {
+        std::ostringstream oss;
+        oss << "(fn (";
+        for (std::size_t i = 0; i < fn_expr.parameters.size(); ++i) {
+            if (i > 0) {
+                oss << ' ';
+            }
+            oss << fn_expr.parameters[i].name;
+        }
+        oss << ") " << render(*fn_expr.body) << ")";
+        return oss.str();
+    }
 };
 
 std::string render(const Expression& expression) {

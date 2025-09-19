@@ -21,6 +21,7 @@ enum class TokenType {
     Number,
     Identifier,
     Let,
+    Fn,
     If,
     Else,
     For,
@@ -31,6 +32,7 @@ enum class TokenType {
     Slash,
     LeftParen,
     RightParen,
+    Comma,
     LeftBrace,
     RightBrace,
     Semicolon,
@@ -66,6 +68,8 @@ inline std::string to_string(TokenType type) {
             return "identifier";
         case TokenType::Let:
             return "let";
+        case TokenType::Fn:
+            return "fn";
         case TokenType::If:
             return "if";
         case TokenType::Else:
@@ -86,6 +90,8 @@ inline std::string to_string(TokenType type) {
             return "(";
         case TokenType::RightParen:
             return ")";
+        case TokenType::Comma:
+            return ",";
         case TokenType::Equals:
             return "=";
         case TokenType::Semicolon:

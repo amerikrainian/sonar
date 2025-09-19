@@ -84,7 +84,18 @@ struct Expression {
         SourceSpan span;
     };
 
-    using Node = std::variant<Number, Prefix, Infix, Grouping, Unit, Assign, Variable, Block, If, While, For>;
+    struct Function {
+        struct Parameter {
+            std::string name;
+            SourceSpan span;
+        };
+
+        std::vector<Parameter> parameters;
+        ExpressionPtr body;
+        SourceSpan span;
+    };
+
+    using Node = std::variant<Number, Prefix, Infix, Grouping, Unit, Assign, Variable, Block, If, While, For, Function>;
 
     explicit Expression(Number node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Variable node) : span(node.span), node(std::move(node)) {}
@@ -97,6 +108,7 @@ struct Expression {
     explicit Expression(If node) : span(node.span), node(std::move(node)) {}
     explicit Expression(While node) : span(node.span), node(std::move(node)) {}
     explicit Expression(For node) : span(node.span), node(std::move(node)) {}
+    explicit Expression(Function node) : span(node.span), node(std::move(node)) {}
 
     ~Expression();
 

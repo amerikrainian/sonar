@@ -3,6 +3,7 @@
 #include <memory>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "sonar/token.hpp"
 
@@ -58,7 +59,12 @@ struct Expression {
         SourceSpan span;
     };
 
-    using Node = std::variant<Number, Prefix, Infix, Grouping, Unit, Let, Assign, Variable>;
+    struct Block {
+        std::vector<std::unique_ptr<Expression>> expressions;
+        SourceSpan span;
+    };
+
+    using Node = std::variant<Number, Prefix, Infix, Grouping, Unit, Let, Assign, Variable, Block>;
 
     explicit Expression(Number node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Variable node) : span(node.span), node(std::move(node)) {}
@@ -68,6 +74,7 @@ struct Expression {
     explicit Expression(Unit node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Let node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Assign node) : span(node.span), node(std::move(node)) {}
+    explicit Expression(Block node) : span(node.span), node(std::move(node)) {}
 
     SourceSpan span;
     Node node;

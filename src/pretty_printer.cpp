@@ -50,6 +50,15 @@ struct Printer {
     std::string operator()(const Expression::Variable& variable) const {
         return variable.name;
     }
+
+    std::string operator()(const Expression::Block& block) const {
+        std::string result = "{ ";
+        for (const auto& expr : block.expressions) {
+            result += render(*expr) + " ";
+        }
+        result += "}";
+        return result;
+    }
 };
 
 std::string render(const Expression& expression) {

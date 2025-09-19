@@ -27,6 +27,8 @@ enum class TokenType {
     Slash,
     LeftParen,
     RightParen,
+    LeftBrace,
+    RightBrace,
     Equals,
     End,
 };
@@ -74,6 +76,10 @@ inline std::string to_string(TokenType type) {
             return "<eof>";
         case TokenType::Equals:
             return "=";
+        case TokenType::LeftBrace:
+            return "{";
+        case TokenType::RightBrace:
+            return "}";
     }
     return "<unknown>";
 }

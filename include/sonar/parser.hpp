@@ -60,6 +60,7 @@ class Parser {
     ExpressionPtr parse_grouping();
     ExpressionPtr parse_prefix_operator();
     ExpressionPtr parse_binary_operator(ExpressionPtr left, Token op);
+    ExpressionPtr parse_block();
 
     ParseError make_error(const std::string& message, SourceSpan span, bool incomplete) const;
     SourceLocation location_for(std::size_t offset) const;

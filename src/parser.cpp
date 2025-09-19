@@ -77,6 +77,8 @@ ExpressionPtr Parser::parse_prefix() {
             Expression::Variable node{name.lexeme, name.span, name.span};
             return std::make_unique<Expression>(std::move(node));
         }
+        case TokenType::LeftBrace:
+            return parse_block();
         default:
             throw make_error("Unexpected token '" + token.lexeme + "' while parsing expression", token.span, false);
     }
@@ -136,7 +138,7 @@ const Token& Parser::consume(TokenType type, const std::string& message) {
 int Parser::precedence(TokenType type) const {
     switch (type) {
         case TokenType::Equals:
-        return 5;
+            return 5;
         case TokenType::Plus:
         case TokenType::Minus:
             return 10;
@@ -188,7 +190,7 @@ ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op) {
             throw make_error("Left-hand side of assignment must be a variable", op.span, false);
         }
 
-        auto right = parse_expression(operator_precedence); // not +1 → right-assoc
+        auto right = parse_expression(operator_precedence);  // not +1 → right-assoc
         SourceSpan span{left->span.start, right->span.end};
         Expression::Assign node{var->name, var->name_span, std::move(right), span};
         return std::make_unique<Expression>(std::move(node));
@@ -213,6 +215,22 @@ SourceLocation Parser::location_for(std::size_t offset) const {
     std::size_t line = line_index + 1;
     std::size_t column = offset - line_offsets_[line_index] + 1;
     return SourceLocation{line, column};
+}
+
+ExpressionPtr Parser::parse_block() {
+    Token open = consume(TokenType::LeftBrace, "Expected '{' to start block");
+
+    std::vector<ExpressionPtr> exprs;
+
+    while (!check(TokenType::RightBrace) && !is_at_end()) {
+        exprs.push_back(parse_expression());
+    }
+
+    const Token& close = consume(TokenType::RightBrace, "Expected '}' after block");
+
+    SourceSpan span{open.span.start, close.span.end};
+    Expression::Block node{std::move(exprs), span};
+    return std::make_unique<Expression>(std::move(node));
 }
 
 }  // namespace sonar

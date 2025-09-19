@@ -152,6 +152,14 @@ LexResult Lexer::tokenize(std::string_view source) const {
                 result.tokens.push_back({TokenType::Equals, "=", SourceSpan{index, index + 1}});
                 ++index;
                 continue;
+            case '{':
+                result.tokens.push_back({TokenType::LeftBrace, "{", SourceSpan{index, index + 1}});
+                ++index;
+                continue;
+            case '}':
+                result.tokens.push_back({TokenType::RightBrace, "}", SourceSpan{index, index + 1}});
+                ++index;
+                continue;
             default:
                 break;
         }

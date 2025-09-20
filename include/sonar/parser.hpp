@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -42,25 +43,27 @@ class Parser {
     ExpressionPtr parse();
 
    private:
-    using PrefixParselet = ExpressionPtr (Parser::*)(Token);
-    using InfixParselet = ExpressionPtr (Parser::*)(ExpressionPtr, Token, int, bool);
-
-    struct PrefixRule {
-        TokenType type;
-        PrefixParselet parselet;
+    enum class Precedence : int {
+        Lowest = 0,
+        Assignment,
+        Sum,
+        Product,
+        Prefix,
     };
 
+    using PrefixParselet = std::function<ExpressionPtr(Parser&, Token)>;
+    using InfixParselet = std::function<ExpressionPtr(Parser&, ExpressionPtr, Token, Precedence, bool)>;
+
     struct InfixRule {
-        TokenType type;
-        int precedence;
+        Precedence precedence;
         bool right_associative;
         InfixParselet parselet;
     };
 
-    static const PrefixRule* find_prefix_rule(TokenType type);
+    static const PrefixParselet* find_prefix_rule(TokenType type);
     static const InfixRule* find_infix_rule(TokenType type);
 
-    ExpressionPtr parse_expression(int precedence = 0);
+    ExpressionPtr parse_expression(Precedence precedence = Precedence::Lowest);
 
     struct StatementSequence {
         std::vector<StatementPtr> statements;
@@ -85,7 +88,7 @@ class Parser {
     ExpressionPtr parse_number(Token literal);
     ExpressionPtr parse_grouping(Token open);
     ExpressionPtr parse_prefix_operator(Token op);
-    ExpressionPtr parse_binary_operator(ExpressionPtr left, Token op, int precedence, bool right_associative);
+    ExpressionPtr parse_binary_operator(ExpressionPtr left, Token op, Precedence precedence, bool right_associative);
     ExpressionPtr parse_block(Token open);
     ExpressionPtr parse_if(Token if_token);
     ExpressionPtr parse_while(Token while_token);

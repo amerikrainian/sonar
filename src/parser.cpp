@@ -2,50 +2,89 @@
 
 #include <algorithm>
 #include <stdexcept>
+#include <unordered_map>
 #include <utility>
 
 namespace sonar {
 
 namespace {
-constexpr int kPrefixPrecedence = 30;
-}
-
-const Parser::PrefixRule* Parser::find_prefix_rule(TokenType type) {
-    static constexpr PrefixRule kRules[] = {
-        {TokenType::Number, &Parser::parse_number},
-        {TokenType::Minus, &Parser::parse_prefix_operator},
-        {TokenType::LeftParen, &Parser::parse_grouping},
-        {TokenType::Identifier, &Parser::parse_identifier},
-        {TokenType::Fn, &Parser::parse_function_literal},
-        {TokenType::LeftBrace, &Parser::parse_block},
-        {TokenType::If, &Parser::parse_if},
-        {TokenType::While, &Parser::parse_while},
-        {TokenType::For, &Parser::parse_for},
-    };
-
-    for (const auto& rule : kRules) {
-        if (rule.type == type) {
-            return &rule;
-        }
+struct TokenTypeHash {
+    std::size_t operator()(TokenType type) const noexcept {
+        return static_cast<std::size_t>(type);
     }
-    return nullptr;
+};
+
+}  // namespace
+
+const Parser::PrefixParselet* Parser::find_prefix_rule(TokenType type) {
+    using PrefixRuleMap = std::unordered_map<TokenType, PrefixParselet, TokenTypeHash>;
+
+    static const PrefixRuleMap rules = []() {
+        PrefixRuleMap map;
+        map.emplace(TokenType::Number, PrefixParselet{[](Parser& parser, Token token) {
+                           return parser.parse_number(std::move(token));
+                       }});
+        map.emplace(TokenType::Minus, PrefixParselet{[](Parser& parser, Token token) {
+                           return parser.parse_prefix_operator(std::move(token));
+                       }});
+        map.emplace(TokenType::LeftParen, PrefixParselet{[](Parser& parser, Token token) {
+                           return parser.parse_grouping(std::move(token));
+                       }});
+        map.emplace(TokenType::Identifier, PrefixParselet{[](Parser& parser, Token token) {
+                           return parser.parse_identifier(std::move(token));
+                       }});
+        map.emplace(TokenType::Fn, PrefixParselet{[](Parser& parser, Token token) {
+                           return parser.parse_function_literal(std::move(token));
+                       }});
+        map.emplace(TokenType::LeftBrace, PrefixParselet{[](Parser& parser, Token token) {
+                           return parser.parse_block(std::move(token));
+                       }});
+        map.emplace(TokenType::If, PrefixParselet{[](Parser& parser, Token token) {
+                           return parser.parse_if(std::move(token));
+                       }});
+        map.emplace(TokenType::While, PrefixParselet{[](Parser& parser, Token token) {
+                           return parser.parse_while(std::move(token));
+                       }});
+        map.emplace(TokenType::For, PrefixParselet{[](Parser& parser, Token token) {
+                           return parser.parse_for(std::move(token));
+                       }});
+        return map;
+    }();
+
+    auto it = rules.find(type);
+    if (it == rules.end()) {
+        return nullptr;
+    }
+    return &it->second;
 }
 
 const Parser::InfixRule* Parser::find_infix_rule(TokenType type) {
-    static constexpr InfixRule kRules[] = {
-        {TokenType::Equals, 5, true, &Parser::parse_binary_operator},
-        {TokenType::Plus, 10, false, &Parser::parse_binary_operator},
-        {TokenType::Minus, 10, false, &Parser::parse_binary_operator},
-        {TokenType::Star, 20, false, &Parser::parse_binary_operator},
-        {TokenType::Slash, 20, false, &Parser::parse_binary_operator},
-    };
+    using InfixRuleMap = std::unordered_map<TokenType, InfixRule, TokenTypeHash>;
 
-    for (const auto& rule : kRules) {
-        if (rule.type == type) {
-            return &rule;
-        }
+    static const InfixRuleMap rules = []() {
+        InfixRuleMap map;
+        auto make_rule = [](Precedence precedence, bool right_associative) {
+            return InfixRule{precedence,
+                             right_associative,
+                             InfixParselet{[](Parser& parser, ExpressionPtr left, Token op, Precedence precedence_value,
+                                              bool is_right_associative) {
+                                 return parser.parse_binary_operator(std::move(left), std::move(op), precedence_value, is_right_associative);
+                             }}};
+        };
+
+        map.emplace(TokenType::Equals, make_rule(Precedence::Assignment, true));
+        map.emplace(TokenType::Plus, make_rule(Precedence::Sum, false));
+        map.emplace(TokenType::Minus, make_rule(Precedence::Sum, false));
+        map.emplace(TokenType::Star, make_rule(Precedence::Product, false));
+        map.emplace(TokenType::Slash, make_rule(Precedence::Product, false));
+        return map;
+    }();
+
+    auto it = rules.find(type);
+    if (it == rules.end()) {
+        return nullptr;
     }
-    return nullptr;
+    return &it->second;
 }
 
 Parser::Parser(std::vector<Token> tokens, std::vector<std::size_t> line_offsets, std::string source_name)
@@ -76,14 +115,14 @@ ExpressionPtr Parser::parse() {
     return std::make_unique<Expression>(std::move(node));
 }
 
-ExpressionPtr Parser::parse_expression(int precedence_floor) {
+ExpressionPtr Parser::parse_expression(Precedence precedence_floor) {
     if (is_at_end()) {
         const Token& end_token = peek();
         throw make_error("Unexpected end of input while parsing expression", end_token.span, true);
     }
 
     Token token = advance();
-    const PrefixRule* prefix_rule = find_prefix_rule(token.type);
+    const PrefixParselet* prefix_rule = find_prefix_rule(token.type);
 
     if (!prefix_rule) {
         if (token.type == TokenType::Let) {
@@ -95,17 +134,17 @@ ExpressionPtr Parser::parse_expression(int precedence_floor) {
         throw make_error("Unexpected token '" + token.lexeme + "' while parsing expression", token.span, false);
     }
 
-    auto left = (this->*prefix_rule->parselet)(std::move(token));
+    auto left = (*prefix_rule)(*this, std::move(token));
 
     while (!is_at_end()) {
         const Token& next = peek();
         const InfixRule* infix_rule = find_infix_rule(next.type);
-        if (!infix_rule || infix_rule->precedence < precedence_floor) {
+        if (!infix_rule || static_cast<int>(infix_rule->precedence) < static_cast<int>(precedence_floor)) {
             break;
         }
 
         Token op = advance();
-        left = (this->*infix_rule->parselet)(std::move(left), std::move(op), infix_rule->precedence, infix_rule->right_associative);
+        left = infix_rule->parselet(*this, std::move(left), std::move(op), infix_rule->precedence, infix_rule->right_associative);
     }
 
     return left;
@@ -266,14 +305,14 @@ ExpressionPtr Parser::parse_grouping(Token open) {
 }
 
 ExpressionPtr Parser::parse_prefix_operator(Token op) {
-    auto right = parse_expression(kPrefixPrecedence);
+    auto right = parse_expression(Precedence::Prefix);
     SourceSpan right_span = right->span;
     SourceSpan span{op.span.start, right_span.end};
     Expression::Prefix node{op.type, op.span, std::move(right), span};
     return std::make_unique<Expression>(std::move(node));
 }
 
-ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op, int operator_precedence, bool right_associative) {
+ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op, Precedence operator_precedence, bool right_associative) {
     if (op.type == TokenType::Equals) {
         auto* var = std::get_if<Expression::Variable>(&left->node);
         if (!var) {
@@ -286,8 +325,9 @@ ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op, int op
         return std::make_unique<Expression>(std::move(node));
     }
 
-    int right_binding_power = operator_precedence + (right_associative ? 0 : 1);
-    auto right = parse_expression(right_binding_power);
+    int precedence_offset = static_cast<int>(operator_precedence) + (right_associative ? 0 : 1);
+    auto next_precedence = static_cast<Precedence>(precedence_offset);
+    auto right = parse_expression(next_precedence);
     SourceSpan left_span = left->span;
     SourceSpan right_span = right->span;
     SourceSpan span{left_span.start, right_span.end};

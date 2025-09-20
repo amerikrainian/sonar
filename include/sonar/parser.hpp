@@ -42,9 +42,25 @@ class Parser {
     ExpressionPtr parse();
 
    private:
+    using PrefixParselet = ExpressionPtr (Parser::*)(Token);
+    using InfixParselet = ExpressionPtr (Parser::*)(ExpressionPtr, Token, int, bool);
+
+    struct PrefixRule {
+        TokenType type;
+        PrefixParselet parselet;
+    };
+
+    struct InfixRule {
+        TokenType type;
+        int precedence;
+        bool right_associative;
+        InfixParselet parselet;
+    };
+
+    static const PrefixRule* find_prefix_rule(TokenType type);
+    static const InfixRule* find_infix_rule(TokenType type);
+
     ExpressionPtr parse_expression(int precedence = 0);
-    ExpressionPtr parse_prefix();
-    ExpressionPtr parse_infix(ExpressionPtr left, Token op);
 
     struct StatementSequence {
         std::vector<StatementPtr> statements;
@@ -66,17 +82,15 @@ class Parser {
     const Token& previous() const;
     const Token& consume(TokenType type, const std::string& message);
 
-    int precedence(TokenType type) const;
-
-    ExpressionPtr parse_number();
-    ExpressionPtr parse_grouping();
-    ExpressionPtr parse_prefix_operator();
-    ExpressionPtr parse_binary_operator(ExpressionPtr left, Token op);
-    ExpressionPtr parse_block();
-    ExpressionPtr parse_if();
-    ExpressionPtr parse_while();
-    ExpressionPtr parse_for();
-    ExpressionPtr parse_identifier();
+    ExpressionPtr parse_number(Token literal);
+    ExpressionPtr parse_grouping(Token open);
+    ExpressionPtr parse_prefix_operator(Token op);
+    ExpressionPtr parse_binary_operator(ExpressionPtr left, Token op, int precedence, bool right_associative);
+    ExpressionPtr parse_block(Token open);
+    ExpressionPtr parse_if(Token if_token);
+    ExpressionPtr parse_while(Token while_token);
+    ExpressionPtr parse_for(Token for_token);
+    ExpressionPtr parse_identifier(Token name);
     ExpressionPtr parse_function_literal(Token fn_token);
 
     ParseError make_error(const std::string& message, SourceSpan span, bool incomplete) const;

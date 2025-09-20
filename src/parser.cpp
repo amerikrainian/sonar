@@ -10,6 +10,44 @@ namespace {
 constexpr int kPrefixPrecedence = 30;
 }
 
+const Parser::PrefixRule* Parser::find_prefix_rule(TokenType type) {
+    static constexpr PrefixRule kRules[] = {
+        {TokenType::Number, &Parser::parse_number},
+        {TokenType::Minus, &Parser::parse_prefix_operator},
+        {TokenType::LeftParen, &Parser::parse_grouping},
+        {TokenType::Identifier, &Parser::parse_identifier},
+        {TokenType::Fn, &Parser::parse_function_literal},
+        {TokenType::LeftBrace, &Parser::parse_block},
+        {TokenType::If, &Parser::parse_if},
+        {TokenType::While, &Parser::parse_while},
+        {TokenType::For, &Parser::parse_for},
+    };
+
+    for (const auto& rule : kRules) {
+        if (rule.type == type) {
+            return &rule;
+        }
+    }
+    return nullptr;
+}
+
+const Parser::InfixRule* Parser::find_infix_rule(TokenType type) {
+    static constexpr InfixRule kRules[] = {
+        {TokenType::Equals, 5, true, &Parser::parse_binary_operator},
+        {TokenType::Plus, 10, false, &Parser::parse_binary_operator},
+        {TokenType::Minus, 10, false, &Parser::parse_binary_operator},
+        {TokenType::Star, 20, false, &Parser::parse_binary_operator},
+        {TokenType::Slash, 20, false, &Parser::parse_binary_operator},
+    };
+
+    for (const auto& rule : kRules) {
+        if (rule.type == type) {
+            return &rule;
+        }
+    }
+    return nullptr;
+}
+
 Parser::Parser(std::vector<Token> tokens, std::vector<std::size_t> line_offsets, std::string source_name)
     : tokens_(std::move(tokens)),
       line_offsets_(std::move(line_offsets)),
@@ -39,66 +77,38 @@ ExpressionPtr Parser::parse() {
 }
 
 ExpressionPtr Parser::parse_expression(int precedence_floor) {
-    auto left = parse_prefix();
+    if (is_at_end()) {
+        const Token& end_token = peek();
+        throw make_error("Unexpected end of input while parsing expression", end_token.span, true);
+    }
+
+    Token token = advance();
+    const PrefixRule* prefix_rule = find_prefix_rule(token.type);
+
+    if (!prefix_rule) {
+        if (token.type == TokenType::Let) {
+            throw make_error("Unexpected 'let' while parsing expression", token.span, false);
+        }
+        if (token.type == TokenType::End) {
+            throw make_error("Unexpected end of input while parsing expression", token.span, true);
+        }
+        throw make_error("Unexpected token '" + token.lexeme + "' while parsing expression", token.span, false);
+    }
+
+    auto left = (this->*prefix_rule->parselet)(std::move(token));
 
     while (!is_at_end()) {
         const Token& next = peek();
-        int next_precedence = precedence(next.type);
-        if (next_precedence < precedence_floor) {
+        const InfixRule* infix_rule = find_infix_rule(next.type);
+        if (!infix_rule || infix_rule->precedence < precedence_floor) {
             break;
         }
+
         Token op = advance();
-        left = parse_infix(std::move(left), std::move(op));
+        left = (this->*infix_rule->parselet)(std::move(left), std::move(op), infix_rule->precedence, infix_rule->right_associative);
     }
 
     return left;
-}
-
-ExpressionPtr Parser::parse_prefix() {
-    const Token& token = peek();
-    switch (token.type) {
-        case TokenType::Number:
-            advance();
-            return parse_number();
-        case TokenType::Minus:
-            advance();
-            return parse_prefix_operator();
-        case TokenType::LeftParen:
-            return parse_grouping();
-        case TokenType::End:
-            throw make_error("Unexpected end of input while parsing expression", token.span, true);
-        case TokenType::Identifier:
-            return parse_identifier();
-        case TokenType::Fn: {
-            Token fn_token = advance();
-            return parse_function_literal(fn_token);
-        }
-        case TokenType::LeftBrace:
-            return parse_block();
-        case TokenType::If:
-            return parse_if();
-        case TokenType::While:
-            return parse_while();
-        case TokenType::For:
-            return parse_for();
-        case TokenType::Let:
-            throw make_error("Unexpected 'let' while parsing expression", token.span, false);
-        default:
-            throw make_error("Unexpected token '" + token.lexeme + "' while parsing expression", token.span, false);
-    }
-}
-
-ExpressionPtr Parser::parse_infix(ExpressionPtr left, Token op) {
-    switch (op.type) {
-        case TokenType::Plus:
-        case TokenType::Minus:
-        case TokenType::Star:
-        case TokenType::Slash:
-        case TokenType::Equals:
-            return parse_binary_operator(std::move(left), op);
-        default:
-            throw make_error("Unsupported infix operator: " + to_string(op.type), op.span, false);
-    }
 }
 
 bool Parser::match(TokenType type) {
@@ -235,29 +245,12 @@ StatementPtr Parser::parse_fn_statement() {
     return std::make_unique<Statement>(std::move(node));
 }
 
-int Parser::precedence(TokenType type) const {
-    switch (type) {
-        case TokenType::Equals:
-            return 5;
-        case TokenType::Plus:
-        case TokenType::Minus:
-            return 10;
-        case TokenType::Star:
-        case TokenType::Slash:
-            return 20;
-        default:
-            return -1;
-    }
-}
-
-ExpressionPtr Parser::parse_number() {
-    const Token& literal = previous();
+ExpressionPtr Parser::parse_number(Token literal) {
     Expression::Number node{literal.as_number(), literal.span};
     return std::make_unique<Expression>(std::move(node));
 }
 
-ExpressionPtr Parser::parse_grouping() {
-    Token open = consume(TokenType::LeftParen, "Expected '(' before expression");
+ExpressionPtr Parser::parse_grouping(Token open) {
     if (check(TokenType::RightParen)) {
         const Token& close = advance();
         SourceSpan span{open.span.start, close.span.end};
@@ -272,8 +265,7 @@ ExpressionPtr Parser::parse_grouping() {
     return std::make_unique<Expression>(std::move(node));
 }
 
-ExpressionPtr Parser::parse_prefix_operator() {
-    Token op = previous();
+ExpressionPtr Parser::parse_prefix_operator(Token op) {
     auto right = parse_expression(kPrefixPrecedence);
     SourceSpan right_span = right->span;
     SourceSpan span{op.span.start, right_span.end};
@@ -281,9 +273,7 @@ ExpressionPtr Parser::parse_prefix_operator() {
     return std::make_unique<Expression>(std::move(node));
 }
 
-ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op) {
-    int operator_precedence = precedence(op.type);
-
+ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op, int operator_precedence, bool right_associative) {
     if (op.type == TokenType::Equals) {
         auto* var = std::get_if<Expression::Variable>(&left->node);
         if (!var) {
@@ -296,7 +286,8 @@ ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op) {
         return std::make_unique<Expression>(std::move(node));
     }
 
-    auto right = parse_expression(operator_precedence + 1);
+    int right_binding_power = operator_precedence + (right_associative ? 0 : 1);
+    auto right = parse_expression(right_binding_power);
     SourceSpan left_span = left->span;
     SourceSpan right_span = right->span;
     SourceSpan span{left_span.start, right_span.end};
@@ -317,9 +308,7 @@ SourceLocation Parser::location_for(std::size_t offset) const {
     return SourceLocation{line, column};
 }
 
-ExpressionPtr Parser::parse_block() {
-    Token open = consume(TokenType::LeftBrace, "Expected '{' to start block");
-
+ExpressionPtr Parser::parse_block(Token open) {
     auto sequence = parse_sequence(TokenType::RightBrace);
 
     const Token& close = consume(TokenType::RightBrace, "Expected '}' after block");
@@ -329,9 +318,7 @@ ExpressionPtr Parser::parse_block() {
     return std::make_unique<Expression>(std::move(node));
 }
 
-ExpressionPtr Parser::parse_if() {
-    Token if_token = consume(TokenType::If, "Expected 'if'");
-
+ExpressionPtr Parser::parse_if(Token if_token) {
     auto condition = parse_expression();
 
     auto then_branch = parse_expression();
@@ -347,9 +334,7 @@ ExpressionPtr Parser::parse_if() {
     return std::make_unique<Expression>(std::move(node));
 }
 
-ExpressionPtr Parser::parse_identifier() {
-    Token name = advance();
-
+ExpressionPtr Parser::parse_identifier(Token name) {
     Expression::Variable node{name.lexeme, name.span, name.span};
     return std::make_unique<Expression>(std::move(node));
 }
@@ -378,8 +363,7 @@ ExpressionPtr Parser::parse_function_literal(Token fn_token) {
     return std::make_unique<Expression>(std::move(node));
 }
 
-ExpressionPtr Parser::parse_while() {
-    Token while_token = consume(TokenType::While, "Expected 'while'");
+ExpressionPtr Parser::parse_while(Token while_token) {
     auto condition = parse_expression();
     auto body = parse_expression();
     SourceSpan span{while_token.span.start, body->span.end};
@@ -387,10 +371,9 @@ ExpressionPtr Parser::parse_while() {
     return std::make_unique<Expression>(std::move(node));
 }
 
-ExpressionPtr Parser::parse_for() {
-    Token for_token = consume(TokenType::For, "Expected 'for'");
-
-    auto pattern = parse_identifier();
+ExpressionPtr Parser::parse_for(Token for_token) {
+    const Token& identifier = consume(TokenType::Identifier, "Expected identifier after 'for'");
+    auto pattern = parse_identifier(identifier);
     consume(TokenType::In, "Expected 'in' after loop variable");
 
     auto iterable = parse_expression();

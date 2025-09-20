@@ -46,6 +46,10 @@ class Parser {
     enum class Precedence : int {
         Lowest = 0,
         Assignment,
+        LogicalOr,
+        LogicalAnd,
+        BitwiseOr,
+        BitwiseAnd,
         Sum,
         Product,
         Prefix,
@@ -86,6 +90,9 @@ class Parser {
     const Token& consume(TokenType type, const std::string& message);
 
     ExpressionPtr parse_number(Token literal);
+    ExpressionPtr parse_assignment(ExpressionPtr left, Token op, Precedence precedence);
+    ExpressionPtr parse_boolean(Token literal);
+    ExpressionPtr parse_string(Token literal);
     ExpressionPtr parse_grouping(Token open);
     ExpressionPtr parse_prefix_operator(Token op);
     ExpressionPtr parse_binary_operator(ExpressionPtr left, Token op, Precedence precedence, bool right_associative);

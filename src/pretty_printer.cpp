@@ -17,9 +17,57 @@ std::string format_number(double value) {
     return oss.str();
 }
 
+std::string format_string_literal(const std::string& value) {
+    std::string result;
+    result.reserve(value.size() + 2);
+    result.push_back('"');
+
+    const char* digits = "0123456789ABCDEF";
+
+    for (char ch : value) {
+        const unsigned char uch = static_cast<unsigned char>(ch);
+        switch (ch) {
+            case '\\':
+                result += "\\\\";
+                break;
+            case '"':
+                result += "\\\"";
+                break;
+            case '\n':
+                result += "\\n";
+                break;
+            case '\t':
+                result += "\\t";
+                break;
+            case '\r':
+                result += "\\r";
+                break;
+            default:
+                if (uch < 0x20) {
+                    result += "\\x";
+                    result.push_back(digits[(uch >> 4) & 0xF]);
+                    result.push_back(digits[uch & 0xF]);
+                } else {
+                    result.push_back(static_cast<char>(ch));
+                }
+        }
+    }
+
+    result.push_back('"');
+    return result;
+}
+
 struct Printer {
     std::string operator()(const Expression::Number& number) const {
         return format_number(number.value);
+    }
+
+    std::string operator()(const Expression::Boolean& boolean) const {
+        return boolean.value ? "true" : "false";
+    }
+
+    std::string operator()(const Expression::String& string_literal) const {
+        return format_string_literal(string_literal.value);
     }
 
     std::string operator()(const Expression::Prefix& prefix) const {

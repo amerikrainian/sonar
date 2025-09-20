@@ -21,6 +21,16 @@ struct Expression {
         SourceSpan span;
     };
 
+    struct Boolean {
+        bool value;
+        SourceSpan span;
+    };
+
+    struct String {
+        std::string value;
+        SourceSpan span;
+    };
+
     struct Variable {
         std::string name;
         SourceSpan name_span;
@@ -95,9 +105,11 @@ struct Expression {
         SourceSpan span;
     };
 
-    using Node = std::variant<Number, Prefix, Infix, Grouping, Unit, Assign, Variable, Block, If, While, For, Function>;
+    using Node = std::variant<Number, Boolean, String, Prefix, Infix, Grouping, Unit, Assign, Variable, Block, If, While, For, Function>;
 
     explicit Expression(Number node) : span(node.span), node(std::move(node)) {}
+    explicit Expression(Boolean node) : span(node.span), node(std::move(node)) {}
+    explicit Expression(String node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Variable node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Prefix node) : span(node.span), node(std::move(node)) {}
     explicit Expression(Infix node) : span(node.span), node(std::move(node)) {}

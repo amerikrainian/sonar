@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace sonar {
 
@@ -24,6 +25,8 @@ inline TokenType keyword_or_identifier(std::string_view lexeme) {
         {"for", TokenType::For},
         {"while", TokenType::While},
         {"in", TokenType::In},
+        {"true", TokenType::True},
+        {"false", TokenType::False},
     };
 
     auto it = keywords.find(lexeme);
@@ -91,6 +94,111 @@ Token scan_number(std::string_view source, std::size_t& index, auto&& make_error
 
     const std::size_t length = index - start;
     return {TokenType::Number, std::string(source.substr(start, length)), SourceSpan{start, start + length}};
+}
+
+template <typename ErrorMaker>
+Token scan_string_literal(std::string_view source, std::size_t& index, ErrorMaker&& make_error,
+                          [[maybe_unused]] std::vector<std::size_t>& line_offsets) {
+    const std::size_t start = index;
+    ++index;  // consume opening quote
+    std::string value;
+
+    while (index < source.size()) {
+        char ch = source[index];
+        if (ch == '"') {
+            ++index;
+            return {TokenType::String, std::move(value), SourceSpan{start, index}};
+        }
+
+        if (ch == '\\') {
+            ++index;
+            if (index >= source.size()) {
+                throw make_error("Unterminated escape sequence in string literal", start);
+            }
+            char escape = source[index];
+            ++index;
+            switch (escape) {
+                case 'n':
+                    value.push_back('\n');
+                    break;
+                case 't':
+                    value.push_back('\t');
+                    break;
+                case 'r':
+                    value.push_back('\r');
+                    break;
+                case '\\':
+                    value.push_back('\\');
+                    break;
+                case '"':
+                    value.push_back('"');
+                    break;
+                default:
+                    throw make_error("Unknown escape sequence '\\" + std::string(1, escape) + "'", index - 2);
+            }
+            continue;
+        }
+
+        if (ch == '\n') {
+            throw make_error("Unterminated string literal", index);
+        }
+
+        value.push_back(ch);
+        ++index;
+    }
+
+    throw make_error("Unterminated string literal", start);
+}
+
+template <typename ErrorMaker>
+Token scan_raw_string_literal(std::string_view source, std::size_t& index, ErrorMaker&& make_error,
+                              std::vector<std::size_t>& line_offsets) {
+    const std::size_t start = index;
+    ++index;  // consume 'r'
+
+    std::size_t hash_count = 0;
+    while (index < source.size() && source[index] == '#') {
+        ++hash_count;
+        ++index;
+    }
+
+    if (index >= source.size() || source[index] != '"') {
+        throw make_error("Invalid raw string literal", index);
+    }
+
+    ++index;  // consume opening quote
+    std::string value;
+
+    while (index < source.size()) {
+        char ch = source[index];
+        if (ch == '"') {
+            std::size_t closing_index = index + 1;
+            std::size_t matched_hashes = 0;
+            while (matched_hashes < hash_count && closing_index < source.size() && source[closing_index] == '#') {
+                ++closing_index;
+                ++matched_hashes;
+            }
+            if (matched_hashes == hash_count) {
+                index = closing_index;
+                return {TokenType::String, std::move(value), SourceSpan{start, index}};
+            }
+            value.push_back('"');
+            ++index;
+            continue;
+        }
+
+        if (ch == '\n') {
+            ++index;
+            line_offsets.push_back(index);
+            value.push_back('\n');
+            continue;
+        }
+
+        value.push_back(ch);
+        ++index;
+    }
+
+    throw make_error("Unterminated raw string literal", start);
 }
 
 }  // namespace
@@ -181,6 +289,26 @@ LexResult Lexer::tokenize(std::string_view source) const {
                 ++index;
                 continue;
             }
+            case '&': {
+                if (peek(1) == '&') {
+                    result.tokens.push_back({TokenType::AndAnd, "&&", SourceSpan{index, index + 2}});
+                    index += 2;
+                } else {
+                    result.tokens.push_back({TokenType::Ampersand, "&", SourceSpan{index, index + 1}});
+                    ++index;
+                }
+                continue;
+            }
+            case '|': {
+                if (peek(1) == '|') {
+                    result.tokens.push_back({TokenType::OrOr, "||", SourceSpan{index, index + 2}});
+                    index += 2;
+                } else {
+                    result.tokens.push_back({TokenType::Pipe, "|", SourceSpan{index, index + 1}});
+                    ++index;
+                }
+                continue;
+            }
             case '(':
                 result.tokens.push_back({TokenType::LeftParen, "(", SourceSpan{index, index + 1}});
                 ++index;
@@ -216,6 +344,19 @@ LexResult Lexer::tokenize(std::string_view source) const {
         if (is_digit(ch) || ch == '.') {
             result.tokens.push_back(scan_number(source, index, make_error));
             continue;
+        }
+
+        if (ch == '"') {
+            result.tokens.push_back(scan_string_literal(source, index, make_error, result.line_offsets));
+            continue;
+        }
+
+        if (ch == 'r') {
+            char next = peek(1);
+            if (next == '"' || next == '#') {
+                result.tokens.push_back(scan_raw_string_literal(source, index, make_error, result.line_offsets));
+                continue;
+            }
         }
 
         if (std::isalpha(static_cast<unsigned char>(ch)) || ch == '_') {

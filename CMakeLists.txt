@@ -10,7 +10,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Put executables under build/bin/
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 foreach(CONFIG IN ITEMS DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
@@ -18,6 +17,7 @@ endforeach()
 
 add_subdirectory(thirdparty/replxx)
 add_subdirectory(thirdparty/argparse)
+add_subdirectory(thirdparty/googletest)
 
 file(GLOB_RECURSE SONAR_HEADERS CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/include/sonar/*.hpp)
 file(GLOB_RECURSE SONAR_SOURCES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/*.cpp)
@@ -51,5 +51,18 @@ target_link_libraries(sonar
 
 target_compile_definitions(sonar PRIVATE SONAR_VERSION="${PROJECT_VERSION}")
 
-# Install still goes to bin/ under install prefix
 install(TARGETS sonar RUNTIME DESTINATION bin)
+
+enable_testing()
+
+add_executable(sonar_tests
+  test/pretty_printer_test.cpp
+)
+
+target_link_libraries(sonar_tests
+  PRIVATE
+    sonar::core
+    gtest_main
+)
+
+add_test(NAME sonar_tests COMMAND sonar_tests)

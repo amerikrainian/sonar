@@ -22,32 +22,41 @@ const Parser::PrefixParselet* Parser::find_prefix_rule(TokenType type) {
     static const PrefixRuleMap rules = []() {
         PrefixRuleMap map;
         map.emplace(TokenType::Number, PrefixParselet{[](Parser& parser, Token token) {
-                           return parser.parse_number(std::move(token));
-                       }});
+                        return parser.parse_number(std::move(token));
+                    }});
+        map.emplace(TokenType::String, PrefixParselet{[](Parser& parser, Token token) {
+                        return parser.parse_string(std::move(token));
+                    }});
+        map.emplace(TokenType::True, PrefixParselet{[](Parser& parser, Token token) {
+                        return parser.parse_boolean(std::move(token));
+                    }});
+        map.emplace(TokenType::False, PrefixParselet{[](Parser& parser, Token token) {
+                        return parser.parse_boolean(std::move(token));
+                    }});
         map.emplace(TokenType::Minus, PrefixParselet{[](Parser& parser, Token token) {
-                           return parser.parse_prefix_operator(std::move(token));
-                       }});
+                        return parser.parse_prefix_operator(std::move(token));
+                    }});
         map.emplace(TokenType::LeftParen, PrefixParselet{[](Parser& parser, Token token) {
-                           return parser.parse_grouping(std::move(token));
-                       }});
+                        return parser.parse_grouping(std::move(token));
+                    }});
         map.emplace(TokenType::Identifier, PrefixParselet{[](Parser& parser, Token token) {
-                           return parser.parse_identifier(std::move(token));
-                       }});
+                        return parser.parse_identifier(std::move(token));
+                    }});
         map.emplace(TokenType::Fn, PrefixParselet{[](Parser& parser, Token token) {
-                           return parser.parse_function_literal(std::move(token));
-                       }});
+                        return parser.parse_function_literal(std::move(token));
+                    }});
         map.emplace(TokenType::LeftBrace, PrefixParselet{[](Parser& parser, Token token) {
-                           return parser.parse_block(std::move(token));
-                       }});
+                        return parser.parse_block(std::move(token));
+                    }});
         map.emplace(TokenType::If, PrefixParselet{[](Parser& parser, Token token) {
-                           return parser.parse_if(std::move(token));
-                       }});
+                        return parser.parse_if(std::move(token));
+                    }});
         map.emplace(TokenType::While, PrefixParselet{[](Parser& parser, Token token) {
-                           return parser.parse_while(std::move(token));
-                       }});
+                        return parser.parse_while(std::move(token));
+                    }});
         map.emplace(TokenType::For, PrefixParselet{[](Parser& parser, Token token) {
-                           return parser.parse_for(std::move(token));
-                       }});
+                        return parser.parse_for(std::move(token));
+                    }});
         return map;
     }();
 
@@ -72,7 +81,19 @@ const Parser::InfixRule* Parser::find_infix_rule(TokenType type) {
                              }}};
         };
 
-        map.emplace(TokenType::Equals, make_rule(Precedence::Assignment, true));
+        map.emplace(TokenType::Equals,
+                    InfixRule{
+                        Precedence::Assignment,
+                        true,
+                        InfixParselet{
+                            [](Parser& parser, ExpressionPtr left, Token op,
+                               Precedence precedence_value, bool /*unused*/) {
+                                return parser.parse_assignment(std::move(left), std::move(op), precedence_value);
+                            }}});
+        map.emplace(TokenType::OrOr, make_rule(Precedence::LogicalOr, false));
+        map.emplace(TokenType::AndAnd, make_rule(Precedence::LogicalAnd, false));
+        map.emplace(TokenType::Pipe, make_rule(Precedence::BitwiseOr, false));
+        map.emplace(TokenType::Ampersand, make_rule(Precedence::BitwiseAnd, false));
         map.emplace(TokenType::Plus, make_rule(Precedence::Sum, false));
         map.emplace(TokenType::Minus, make_rule(Precedence::Sum, false));
         map.emplace(TokenType::Star, make_rule(Precedence::Product, false));
@@ -199,7 +220,6 @@ Parser::StatementSequence Parser::parse_sequence(TokenType terminator) {
     StatementSequence sequence;
 
     while (!check(terminator) && !is_at_end()) {
-        // Allow empty statements (just ;)
         if (check(TokenType::Semicolon)) {
             advance();
             continue;
@@ -214,7 +234,6 @@ Parser::StatementSequence Parser::parse_sequence(TokenType terminator) {
 
         if (check(TokenType::Fn) && peek(1).type == TokenType::Identifier) {
             auto stmt = parse_fn_statement();
-            // no trailing semicolon allowed for fn
             if (check(TokenType::Semicolon)) {
                 throw make_error("Unexpected ';' after function definition", peek().span, false);
             }
@@ -225,12 +244,10 @@ Parser::StatementSequence Parser::parse_sequence(TokenType terminator) {
         auto expr = parse_expression();
 
         if (match(TokenType::Semicolon)) {
-            // any expression with semicolon is a statement
             sequence.statements.push_back(make_expression_statement(std::move(expr)));
             continue;
         }
 
-        // no semicolon → must be the final value
         if (sequence.value) {
             throw make_error("Unexpected expression after final expression", expr->span, false);
         }
@@ -289,6 +306,16 @@ ExpressionPtr Parser::parse_number(Token literal) {
     return std::make_unique<Expression>(std::move(node));
 }
 
+ExpressionPtr Parser::parse_boolean(Token literal) {
+    Expression::Boolean node{literal.type == TokenType::True, literal.span};
+    return std::make_unique<Expression>(std::move(node));
+}
+
+ExpressionPtr Parser::parse_string(Token literal) {
+    Expression::String node{std::move(literal.lexeme), literal.span};
+    return std::make_unique<Expression>(std::move(node));
+}
+
 ExpressionPtr Parser::parse_grouping(Token open) {
     if (check(TokenType::RightParen)) {
         const Token& close = advance();
@@ -313,18 +340,6 @@ ExpressionPtr Parser::parse_prefix_operator(Token op) {
 }
 
 ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op, Precedence operator_precedence, bool right_associative) {
-    if (op.type == TokenType::Equals) {
-        auto* var = std::get_if<Expression::Variable>(&left->node);
-        if (!var) {
-            throw make_error("Left-hand side of assignment must be a variable", op.span, false);
-        }
-
-        auto right = parse_expression(operator_precedence);
-        SourceSpan span{left->span.start, right->span.end};
-        Expression::Assign node{var->name, var->name_span, std::move(right), span};
-        return std::make_unique<Expression>(std::move(node));
-    }
-
     int precedence_offset = static_cast<int>(operator_precedence) + (right_associative ? 0 : 1);
     auto next_precedence = static_cast<Precedence>(precedence_offset);
     auto right = parse_expression(next_precedence);
@@ -332,6 +347,17 @@ ExpressionPtr Parser::parse_binary_operator(ExpressionPtr left, Token op, Preced
     SourceSpan right_span = right->span;
     SourceSpan span{left_span.start, right_span.end};
     Expression::Infix node{op.type, op.span, std::move(left), std::move(right), span};
+    return std::make_unique<Expression>(std::move(node));
+}
+
+ExpressionPtr Parser::parse_assignment(ExpressionPtr left, Token op, Precedence precedence) {
+    auto* var = std::get_if<Expression::Variable>(&left->node);
+    if (!var) {
+        throw make_error("Left-hand side of assignment must be a variable", op.span, false);
+    }
+    auto right = parse_expression(precedence);
+    SourceSpan span{left->span.start, right->span.end};
+    Expression::Assign node{var->name, var->name_span, std::move(right), span};
     return std::make_unique<Expression>(std::move(node));
 }
 

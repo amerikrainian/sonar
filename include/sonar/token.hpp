@@ -19,6 +19,7 @@ struct SourceLocation {
 
 enum class TokenType {
     Number,
+    String,
     Identifier,
     Let,
     Fn,
@@ -26,10 +27,16 @@ enum class TokenType {
     Else,
     For,
     While,
+    True,
+    False,
     Plus,
     Minus,
     Star,
     Slash,
+    Ampersand,
+    Pipe,
+    AndAnd,
+    OrOr,
     LeftParen,
     RightParen,
     Comma,
@@ -64,6 +71,8 @@ inline std::string to_string(TokenType type) {
     switch (type) {
         case TokenType::Number:
             return "number";
+        case TokenType::String:
+            return "string";
         case TokenType::Identifier:
             return "identifier";
         case TokenType::Let:
@@ -78,6 +87,10 @@ inline std::string to_string(TokenType type) {
             return "for";
         case TokenType::While:
             return "while";
+        case TokenType::True:
+            return "true";
+        case TokenType::False:
+            return "false";
         case TokenType::Plus:
             return "+";
         case TokenType::Minus:
@@ -86,6 +99,14 @@ inline std::string to_string(TokenType type) {
             return "*";
         case TokenType::Slash:
             return "/";
+        case TokenType::Ampersand:
+            return "&";
+        case TokenType::Pipe:
+            return "|";
+        case TokenType::AndAnd:
+            return "&&";
+        case TokenType::OrOr:
+            return "||";
         case TokenType::LeftParen:
             return "(";
         case TokenType::RightParen:

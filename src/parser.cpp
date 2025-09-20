@@ -150,6 +150,7 @@ Parser::StatementSequence Parser::parse_sequence(TokenType terminator) {
     StatementSequence sequence;
 
     while (!check(terminator) && !is_at_end()) {
+        // Allow empty statements (just ;)
         if (check(TokenType::Semicolon)) {
             advance();
             continue;
@@ -157,24 +158,30 @@ Parser::StatementSequence Parser::parse_sequence(TokenType terminator) {
 
         if (check(TokenType::Let)) {
             auto stmt = parse_let_statement();
-            match(TokenType::Semicolon);  // eat ; if present
+            consume(TokenType::Semicolon, "Expected ';' after let statement");
             sequence.statements.push_back(std::move(stmt));
             continue;
         }
 
         if (check(TokenType::Fn) && peek(1).type == TokenType::Identifier) {
             auto stmt = parse_fn_statement();
-            match(TokenType::Semicolon);  // eat ; if present
+            // no trailing semicolon allowed for fn
+            if (check(TokenType::Semicolon)) {
+                throw make_error("Unexpected ';' after function definition", peek().span, false);
+            }
             sequence.statements.push_back(std::move(stmt));
             continue;
         }
 
         auto expr = parse_expression();
+
         if (match(TokenType::Semicolon)) {
+            // any expression with semicolon is a statement
             sequence.statements.push_back(make_expression_statement(std::move(expr)));
             continue;
         }
 
+        // no semicolon → must be the final value
         if (sequence.value) {
             throw make_error("Unexpected expression after final expression", expr->span, false);
         }
@@ -193,8 +200,20 @@ StatementPtr Parser::parse_statement() {
     if (check(TokenType::Fn) && peek(1).type == TokenType::Identifier) {
         return parse_fn_statement();
     }
+
     auto expr = parse_expression();
+
+    if (!match(TokenType::Semicolon)) {
+        throw make_error("Expected ';' after expression statement", expr->span, false);
+    }
+
     return make_expression_statement(std::move(expr));
+}
+
+StatementPtr Parser::make_expression_statement(ExpressionPtr expression) {
+    SourceSpan span = expression ? expression->span : SourceSpan{};
+    Statement::Expression node{std::move(expression), span};
+    return std::make_unique<Statement>(std::move(node));
 }
 
 StatementPtr Parser::parse_let_statement() {
@@ -204,12 +223,6 @@ StatementPtr Parser::parse_let_statement() {
     auto initializer = parse_expression();
     SourceSpan span{let_token.span.start, initializer->span.end};
     Statement::Let node{name.lexeme, name.span, std::move(initializer), span};
-    return std::make_unique<Statement>(std::move(node));
-}
-
-StatementPtr Parser::make_expression_statement(ExpressionPtr expression) {
-    SourceSpan span = expression ? expression->span : SourceSpan{};
-    Statement::Expression node{std::move(expression), span};
     return std::make_unique<Statement>(std::move(node));
 }
 

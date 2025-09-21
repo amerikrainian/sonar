@@ -102,6 +102,7 @@ class Parser {
     ExpressionPtr parse_for(Token for_token);
     ExpressionPtr parse_identifier(Token name);
     ExpressionPtr parse_function_literal(Token fn_token);
+    TypeAnnotation parse_type();
 
     ParseError make_error(const std::string& message, SourceSpan span, bool incomplete) const;
     SourceLocation location_for(std::size_t offset) const;

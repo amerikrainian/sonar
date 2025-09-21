@@ -40,9 +40,11 @@ enum class TokenType {
     LeftParen,
     RightParen,
     Comma,
+    Colon,
     LeftBrace,
     RightBrace,
     Semicolon,
+    Arrow,
     Equals,
     In,
     End,
@@ -113,14 +115,18 @@ inline std::string to_string(TokenType type) {
             return ")";
         case TokenType::Comma:
             return ",";
-        case TokenType::Equals:
-            return "=";
-        case TokenType::Semicolon:
-            return ";";
+        case TokenType::Colon:
+            return ":";
         case TokenType::LeftBrace:
             return "{";
         case TokenType::RightBrace:
             return "}";
+        case TokenType::Semicolon:
+            return ";";
+        case TokenType::Arrow:
+            return "->";
+        case TokenType::Equals:
+            return "=";
         case TokenType::End:
             return "<eof>";
         case TokenType::In:

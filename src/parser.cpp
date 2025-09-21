@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
+#include <optional>
 
 namespace sonar {
 
@@ -285,10 +286,15 @@ StatementPtr Parser::make_expression_statement(ExpressionPtr expression) {
 StatementPtr Parser::parse_let_statement() {
     Token let_token = consume(TokenType::Let, "Expected 'let'");
     const Token& name = consume(TokenType::Identifier, "Expected identifier after 'let'");
-    consume(TokenType::Equals, "Expected '=' after identifier");
+    std::optional<TypeAnnotation> annotation;
+    if (match(TokenType::Colon)) {
+        annotation = parse_type();
+    }
+
+    consume(TokenType::Equals, "Expected '=' after identifier (or type annotation)");
     auto initializer = parse_expression();
     SourceSpan span{let_token.span.start, initializer->span.end};
-    Statement::Let node{name.lexeme, name.span, std::move(initializer), span};
+    Statement::Let node{name.lexeme, name.span, std::move(annotation), std::move(initializer), span};
     return std::make_unique<Statement>(std::move(node));
 }
 
@@ -297,7 +303,7 @@ StatementPtr Parser::parse_fn_statement() {
     const Token& name = consume(TokenType::Identifier, "Expected function name after 'fn'");
     auto function = parse_function_literal(fn_token);
     SourceSpan span{fn_token.span.start, function->span.end};
-    Statement::Let node{name.lexeme, name.span, std::move(function), span};
+    Statement::Let node{name.lexeme, name.span, std::nullopt, std::move(function), span};
     return std::make_unique<Statement>(std::move(node));
 }
 
@@ -412,8 +418,10 @@ ExpressionPtr Parser::parse_function_literal(Token fn_token) {
 
     if (!check(TokenType::RightParen)) {
         while (true) {
-            const Token& parameter = consume(TokenType::Identifier, "Expected parameter name");
-            parameters.push_back(Expression::Function::Parameter{parameter.lexeme, parameter.span});
+            const Token& pname = consume(TokenType::Identifier, "Expected parameter name");
+            consume(TokenType::Colon, "Expected ':' after parameter name");
+            TypeAnnotation ptype = parse_type();
+            parameters.push_back(Expression::Function::Parameter{pname.lexeme, pname.span, std::move(ptype)});
             if (!match(TokenType::Comma)) {
                 break;
             }
@@ -422,11 +430,19 @@ ExpressionPtr Parser::parse_function_literal(Token fn_token) {
 
     consume(TokenType::RightParen, "Expected ')' after parameter list");
 
+    consume(TokenType::Arrow, "Expected '->' after parameter list");
+    TypeAnnotation return_type = parse_type();
+
     auto body = parse_expression();
 
     SourceSpan span{fn_token.span.start, body->span.end};
-    Expression::Function node{std::move(parameters), std::move(body), span};
+    Expression::Function node{std::move(parameters), std::move(return_type), std::move(body), span};
     return std::make_unique<Expression>(std::move(node));
+}
+
+TypeAnnotation Parser::parse_type() {
+    const Token& t = consume(TokenType::Identifier, "Expected type name");
+    return TypeAnnotation{t.lexeme, t.span};
 }
 
 ExpressionPtr Parser::parse_while(Token while_token) {

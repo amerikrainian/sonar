@@ -247,10 +247,16 @@ LexResult Lexer::tokenize(std::string_view source) const {
                 result.tokens.push_back({TokenType::Plus, "+", SourceSpan{index, index + 1}});
                 ++index;
                 continue;
-            case '-':
-                result.tokens.push_back({TokenType::Minus, "-", SourceSpan{index, index + 1}});
-                ++index;
+            case '-': {
+                if (peek(1) == '>') {
+                    result.tokens.push_back({TokenType::Arrow, "->", SourceSpan{index, index + 2}});
+                    index += 2;
+                } else {
+                    result.tokens.push_back({TokenType::Minus, "-", SourceSpan{index, index + 1}});
+                    ++index;
+                }
                 continue;
+            }
             case '*':
                 result.tokens.push_back({TokenType::Star, "*", SourceSpan{index, index + 1}});
                 ++index;
@@ -323,6 +329,10 @@ LexResult Lexer::tokenize(std::string_view source) const {
                 continue;
             case '=':
                 result.tokens.push_back({TokenType::Equals, "=", SourceSpan{index, index + 1}});
+                ++index;
+                continue;
+            case ':':
+                result.tokens.push_back({TokenType::Colon, ":", SourceSpan{index, index + 1}});
                 ++index;
                 continue;
             case '{':

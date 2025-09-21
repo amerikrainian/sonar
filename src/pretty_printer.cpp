@@ -132,9 +132,9 @@ struct Printer {
             if (i > 0) {
                 oss << ' ';
             }
-            oss << fn_expr.parameters[i].name;
+            oss << fn_expr.parameters[i].name << ": " << fn_expr.parameters[i].type.name;
         }
-        oss << ") " << render(*fn_expr.body) << ")";
+        oss << ") -> " << fn_expr.return_type.name << ' ' << render(*fn_expr.body) << ")";
         return oss.str();
     }
 };
@@ -145,7 +145,13 @@ std::string render(const Expression& expression) {
 
 struct StatementPrinter {
     std::string operator()(const Statement::Let& let) const {
-        return "(let " + let.name + " = " + render(*let.value) + ")";
+        std::ostringstream oss;
+        oss << "(let " << let.name;
+        if (let.annotation) {
+            oss << ": " << let.annotation->name;
+        }
+        oss << " = " << render(*let.initializer) << ")";
+        return oss.str();
     }
 
     std::string operator()(const Statement::Expression& expr_stmt) const {

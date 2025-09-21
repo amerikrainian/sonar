@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -14,6 +15,11 @@ struct Statement;
 
 using ExpressionPtr = std::unique_ptr<Expression>;
 using StatementPtr = std::unique_ptr<Statement>;
+
+struct TypeAnnotation {
+    std::string name;
+    SourceSpan span;
+};
 
 struct Expression {
     struct Number {
@@ -97,10 +103,12 @@ struct Expression {
     struct Function {
         struct Parameter {
             std::string name;
-            SourceSpan span;
+            SourceSpan name_span;
+            TypeAnnotation type;
         };
 
         std::vector<Parameter> parameters;
+        TypeAnnotation return_type;
         ExpressionPtr body;
         SourceSpan span;
     };
@@ -132,7 +140,8 @@ struct Statement {
     struct Let {
         std::string name;
         SourceSpan name_span;
-        ExpressionPtr value;
+        std::optional<TypeAnnotation> annotation;
+        ExpressionPtr initializer;
         SourceSpan span;
     };
 
